@@ -23,6 +23,7 @@ import java.util.Date
 class MainActivity : AppCompatActivity() {
     private var keyringPassword: String = ""
     private var timestamp: Long = 0;
+    private var timeoutValue: Long = 30000; // 30 seconds timeout
     private var keyringTimer: Job? = null
 
     private lateinit var btnSettings: Button
@@ -86,7 +87,8 @@ class MainActivity : AppCompatActivity() {
         keyringTimer = CoroutineScope(Dispatchers.Main).launch {
             while(true) {
                 today = Date().time;
-                if(  today > (timestamp + 30000) ){
+                var timediff: Long = today - timestamp;
+                if(  today > (timestamp + timeoutValue) ){
                     // More than 10 seconds have passed since last activity
                     keyringPassword = ""
                     textViewStatus.text = "LOCKED";
@@ -184,7 +186,7 @@ class MainActivity : AppCompatActivity() {
                         withContext(Dispatchers.Main) {
                             keyringPassword = password
                             timestamp = Date().time;
-                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully for ${Date().time-(timestamp+timeoutValue)}!", Toast.LENGTH_SHORT).show()
 
                             textViewStatus.text = "UNLOCKED";
                             textViewStatus.setTextColor(getColorStateList(R.color.green));

@@ -46,8 +46,9 @@ class KeyManager(context: Context) {
         return try {
             val publicKeyRing = parsePublicKeyRing(publicKeyString)
             val secretKeyRing = parseSecretKeyRing(privateKeyString)
+            val publicKey = publicKeyRing.publicKey
 
-            PGPKeyPair(publicKeyRing, secretKeyRing)
+            PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
         } catch (e: Exception) {
             null // Return null if parsing fails
         }
