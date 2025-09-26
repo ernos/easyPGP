@@ -10,6 +10,7 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator
 import java.io.ByteArrayInputStream
+import androidx.core.content.edit
 
 class KeyManager(context: Context) {
 
@@ -22,6 +23,34 @@ class KeyManager(context: Context) {
         val keyString: String
     )
 
+    public fun encryptPrivateKeyAndStore(privatekey: String? = null, password: String? = null) {
+        try {
+
+            prefs.edit {
+                putString("my_private_key", privatekey)
+                    .putBoolean("keyring_locked", true)
+            }
+        } catch (e: Exception) {
+            throw Exception("Failed to save key pair: ${e.message}")
+        }
+    }
+    public fun DecryptStoredPrivateKey(password: String? = null): String? {
+        var decryptedPrivateKeyString: String? = null;
+        if(password!=null){
+
+            var privateKeyString = prefs.getString("my_private_key", null);
+            //TODO: Decrypt keyring from storage and store it decrypted in memory
+
+            decryptedPrivateKeyString=privateKeyString;
+
+            TODO()
+
+        }
+        return decryptedPrivateKeyString;
+    }
+    public fun isKeyringLocked(): Boolean {
+        return prefs.getBoolean("keyring_locked", false)
+    }
     // Save user's own PGP key pair
     fun saveMyKeyPair(keyPair: PGPKeyPair) {
         try {

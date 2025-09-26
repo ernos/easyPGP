@@ -19,11 +19,11 @@ import org.bouncycastle.openpgp.PGPPublicKey
 import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
 import java.util.Date
-
+import org.bouncycastle.openpgp.PGPSecretKeyRing
 class MainActivity : AppCompatActivity() {
     private var keyringPassword: String = ""
     private var timestamp: Long = 0;
-    private var timeoutValue: Long = 30000; // 30 seconds timeout
+    private var timeoutValue: Long = 10000; // 30 seconds timeout
     private var keyringTimer: Job? = null
 
     private lateinit var btnSettings: Button
@@ -75,8 +75,9 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT).show()
         } else {
             // No saved keys found
-            textViewStatus.text = "NO KEYS"
+            textViewStatus.text = "ERROR: LOAD FAILED"
             textViewStatus.setTextColor(getColorStateList(R.color.red))
+            Toast.makeText(this, "Error: Could not load Key Pair", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -88,16 +89,20 @@ class MainActivity : AppCompatActivity() {
             while(true) {
                 today = Date().time;
                 var timediff: Long = today - timestamp;
-                if(  today > (timestamp + timeoutValue) ){
-                    // More than 10 seconds have passed since last activity
-                    keyringPassword = ""
-                    textViewStatus.text = "LOCKED";
-                    textViewStatus.setTextColor(getColorStateList(R.color.red));
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Keyring locked due to inactivity",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                if(myPGPKeyPair?.secretKeyRing != null){
+                    if(  today > (timestamp + timeoutValue) ){
+                        val privateKeyString = myPGPKeyPair?.secretKeyRing?.encoded.toString()
+                        keyManager.encryptPrivateKeyAndStore(privateKeyString, keyringPassword);
+                        // More than 10 seconds have passed since last activity
+                        keyringPassword = ""
+                        textViewStatus.text = "LOCKED";
+                        textViewStatus.setTextColor(getColorStateList(R.color.red));
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Keyring locked due to inactivity",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
 
                 delay(1000);
@@ -105,6 +110,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+
 
     override fun onResume() {
         super.onResume()
@@ -281,10 +288,9 @@ class MainActivity : AppCompatActivity() {
     private fun loadImportedKeys() {
         importedKeys = keyManager.getImportedKeys()
 
+
         // Create spinner items with "My Key" option and imported keys
         val spinnerItems = mutableListOf<String>()
-        spinnerItems.add("My Key (Self)")
-        spinnerItems.addAll(importedKeys.map { it.name })
 
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, spinnerItems)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
