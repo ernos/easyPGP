@@ -5,4 +5,7 @@
     <color name="red">#FFFF0000</color>
     <color name="blue">#FF9D1F1F</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="purple_500">#7B1FA2</color> <!-- Updated to a more vibrant purple -->
+    <color name="purple_700">#4A0072</color> <!-- Complementary darker shade -->
+    <color name="teal_200">#03DAC5</color> <!-- Added a complementary teal color -->
 </resources>
