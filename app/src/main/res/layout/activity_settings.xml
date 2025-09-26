@@ -55,9 +55,10 @@
     <Button
         android:id="@+id/btnGenerateKeys"
         style="@style/CustomButtonStyle"
-        android:layout_width="108dp"
-        android:layout_height="64dp"
+        android:layout_width="102dp"
+        android:layout_height="67dp"
         android:layout_marginTop="8dp"
+        android:background="@drawable/rounded_button"
         android:scaleX="1.2"
         android:scaleY="1.2"
         android:text="Generate PGP Keys"
@@ -200,9 +201,8 @@
         android:text="Use same password for decrypting your private key and for when you recieve messages. This can be nice if you don't trust the android key store or just want an added layer of security."
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btnExportPublicKey"
-        app:layout_constraintVertical_bias="0.002" />
+        app:layout_constraintVertical_bias="0.004" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
