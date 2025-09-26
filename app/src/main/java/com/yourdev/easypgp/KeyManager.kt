@@ -2,6 +2,9 @@ package com.yourdev.easypgp
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.yourdev.easypgp.PGPUtil.PGPKeyPair
@@ -10,12 +13,24 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator
 import java.io.ByteArrayInputStream
+import java.security.KeyStore
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import androidx.core.content.edit
 
 class KeyManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("pgp_keys", Context.MODE_PRIVATE)
     private val gson = Gson()
+    private val keyStore: KeyStore = KeyStore.getInstance("AndroidKeyStore")
+    private val keyAlias = "EasyPGP_PrivateKey_Encryption_Key"
+
+    init {
+        keyStore.load(null)
+    }
 
     data class StoredKey(
         val name: String,
@@ -23,33 +38,175 @@ class KeyManager(context: Context) {
         val keyString: String
     )
 
-    public fun encryptPrivateKeyAndStore(privatekey: String? = null, password: String? = null) {
-        try {
+    data class EncryptedData(
+        val encryptedData: String,
+        val iv: String
+    )
 
+    /**
+     * Encrypts and stores the private key using AES-256-GCM encryption
+     * Uses Android KeyStore for secure key management
+     */
+    fun encryptPrivateKeyAndStore(privatekey: String?, password: String?) {
+        if (privatekey == null) {
+            throw IllegalArgumentException("Private key cannot be null")
+        }
+
+        try {
+            // Generate or get existing encryption key from Android KeyStore
+            val secretKey = getOrCreateSecretKey()
+
+            // Encrypt the private key
+            val encryptedData = encryptData(privatekey, secretKey)
+
+            // Store encrypted private key and metadata
             prefs.edit {
-                putString("my_private_key", privatekey)
-                    .putBoolean("keyring_locked", true)
+                putString("my_private_key_encrypted", gson.toJson(encryptedData))
+                putBoolean("keyring_locked", true)
+                putBoolean("has_encrypted_key", true)
             }
         } catch (e: Exception) {
-            throw Exception("Failed to save key pair: ${e.message}")
+            throw Exception("Failed to encrypt and store private key: ${e.message}")
         }
     }
-    public fun DecryptStoredPrivateKey(password: String? = null): String? {
-        var decryptedPrivateKeyString: String? = null;
-        if(password!=null){
 
-            var privateKeyString = prefs.getString("my_private_key", null);
-            //TODO: Decrypt keyring from storage and store it decrypted in memory
-
-            decryptedPrivateKeyString=privateKeyString;
-
-            TODO()
-
+    /**
+     * Decrypts the stored private key using the encryption key from Android KeyStore
+     */
+    fun decryptStoredPrivateKey(password: String?): String? {
+        if (!hasEncryptedPrivateKey()) {
+            return null
         }
-        return decryptedPrivateKeyString;
+
+        return try {
+            // Get the encryption key from Android KeyStore
+            val secretKey = getSecretKey() ?: return null
+
+            // Get encrypted data from SharedPreferences
+            val encryptedDataJson = prefs.getString("my_private_key_encrypted", null) ?: return null
+            val encryptedData = gson.fromJson(encryptedDataJson, EncryptedData::class.java)
+
+            // Decrypt the private key
+            decryptData(encryptedData, secretKey)
+
+        } catch (e: Exception) {
+            null // Return null if decryption fails
+        }
     }
+
+    /**
+     * Generates or retrieves the AES-256-GCM encryption key from Android KeyStore
+     */
+    private fun getOrCreateSecretKey(): SecretKey {
+        return if (keyStore.containsAlias(keyAlias)) {
+            getSecretKey()!!
+        } else {
+            generateSecretKey()
+        }
+    }
+
+    /**
+     * Generates a new AES-256-GCM key in Android KeyStore
+     */
+    private fun generateSecretKey(): SecretKey {
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+
+        val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+            keyAlias,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256) // AES-256
+            .setUserAuthenticationRequired(false) // Set to true if you want biometric/PIN protection
+            .build()
+
+        keyGenerator.init(keyGenParameterSpec)
+        return keyGenerator.generateKey()
+    }
+
+    /**
+     * Retrieves existing encryption key from Android KeyStore
+     */
+    private fun getSecretKey(): SecretKey? {
+        return try {
+            keyStore.getKey(keyAlias, null) as SecretKey
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Encrypts data using AES-256-GCM
+     */
+    private fun encryptData(data: String, secretKey: SecretKey): EncryptedData {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+
+        val iv = cipher.iv
+        val encryptedBytes = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
+
+        return EncryptedData(
+            encryptedData = Base64.encodeToString(encryptedBytes, Base64.DEFAULT),
+            iv = Base64.encodeToString(iv, Base64.DEFAULT)
+        )
+    }
+
+    /**
+     * Decrypts data using AES-256-GCM
+     */
+    private fun decryptData(encryptedData: EncryptedData, secretKey: SecretKey): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+
+        val iv = Base64.decode(encryptedData.iv, Base64.DEFAULT)
+        val gcmParameterSpec = GCMParameterSpec(128, iv) // 128-bit authentication tag
+
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec)
+
+        val encryptedBytes = Base64.decode(encryptedData.encryptedData, Base64.DEFAULT)
+        val decryptedBytes = cipher.doFinal(encryptedBytes)
+
+        return String(decryptedBytes, Charsets.UTF_8)
+    }
+
+    /**
+     * Checks if an encrypted private key exists
+     */
+    private fun hasEncryptedPrivateKey(): Boolean {
+        return prefs.getBoolean("has_encrypted_key", false) &&
+               prefs.getString("my_private_key_encrypted", null) != null
+    }
+
+    /**
+     * Clears the encryption key from Android KeyStore
+     */
+    fun clearEncryptionKey() {
+        try {
+            if (keyStore.containsAlias(keyAlias)) {
+                keyStore.deleteEntry(keyAlias)
+            }
+            prefs.edit {
+                remove("my_private_key_encrypted")
+                putBoolean("has_encrypted_key", false)
+                putBoolean("keyring_locked", true)
+            }
+        } catch (e: Exception) {
+            throw Exception("Failed to clear encryption key: ${e.message}")
+        }
+    }
+
     public fun isKeyringLocked(): Boolean {
-        return prefs.getBoolean("keyring_locked", false)
+        return prefs.getBoolean("keyring_locked", true)
+    }
+    public fun unlockKeyring() {
+        prefs.edit {
+            putBoolean("keyring_locked", false)
+        }
+    }
+    public fun lockKeyring() {
+        prefs.edit {
+            putBoolean("keyring_locked", true)
+        }
     }
     // Save user's own PGP key pair
     fun saveMyKeyPair(keyPair: PGPKeyPair) {
@@ -57,11 +214,15 @@ class KeyManager(context: Context) {
             val publicKeyString = String(keyPair.publicKeyRing.encoded)
             val privateKeyString = String(keyPair.secretKeyRing.encoded)
 
+            // Save public key normally
             prefs.edit()
                 .putString("my_public_key", publicKeyString)
-                .putString("my_private_key", privateKeyString)
                 .putBoolean("has_my_keys", true)
                 .apply()
+
+            // Encrypt and save private key securely
+            encryptPrivateKeyAndStore(privateKeyString, null)
+
         } catch (e: Exception) {
             throw Exception("Failed to save key pair: ${e.message}")
         }
@@ -70,7 +231,7 @@ class KeyManager(context: Context) {
     // Load user's own PGP key pair
     fun loadMyKeyPair(): PGPKeyPair? {
         val publicKeyString = prefs.getString("my_public_key", null) ?: return null
-        val privateKeyString = prefs.getString("my_private_key", null) ?: return null
+        val privateKeyString = decryptStoredPrivateKey(null) ?: return null
 
         return try {
             val publicKeyRing = parsePublicKeyRing(publicKeyString)
@@ -90,6 +251,9 @@ class KeyManager(context: Context) {
             .remove("my_private_key")
             .putBoolean("has_my_keys", false)
             .apply()
+
+        // Also clear encrypted private key
+        clearEncryptionKey()
     }
 
     private fun parsePublicKeyRing(keyString: String): PGPPublicKeyRing {
@@ -159,5 +323,23 @@ class KeyManager(context: Context) {
 
     fun hasMyKeys(): Boolean {
         return prefs.getBoolean("has_my_keys", false)
+    }
+
+    // Get stored public key string
+    fun getStoredPublicKey(): String? {
+        return prefs.getString("my_public_key", null)
+    }
+
+    // Reconstruct PGP key pair from string representations
+    fun reconstructKeyPairFromStrings(publicKeyString: String, privateKeyString: String): PGPKeyPair? {
+        return try {
+            val publicKeyRing = parsePublicKeyRing(publicKeyString)
+            val secretKeyRing = parseSecretKeyRing(privateKeyString)
+            val publicKey = publicKeyRing.publicKey
+
+            PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
+        } catch (e: Exception) {
+            null
+        }
     }
 }

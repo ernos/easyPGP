@@ -82,21 +82,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startKeyringTimer() {
-        timestamp = Date().time;
-        var today:Long = Date().time;
+        timestamp = Date().time
         keyringTimer?.cancel() // Cancel any existing timer
         keyringTimer = CoroutineScope(Dispatchers.Main).launch {
             while(true) {
-                today = Date().time;
-                var timediff: Long = today - timestamp;
-                if(myPGPKeyPair?.secretKeyRing != null){
-                    if(  today > (timestamp + timeoutValue) ){
-                        val privateKeyString = myPGPKeyPair?.secretKeyRing?.encoded.toString()
-                        keyManager.encryptPrivateKeyAndStore(privateKeyString, keyringPassword);
-                        // More than 10 seconds have passed since last activity
+                val today = Date().time
+                if(myPGPKeyPair?.secretKeyRing != null && keyringPassword.isNotEmpty()){
+                    if(today > (timestamp + timeoutValue)){
+                        // Encrypt and store the private key before locking
+                        val privateKeyString = String(myPGPKeyPair?.secretKeyRing?.encoded ?: ByteArray(0))
+                        try {
+                            keyManager.encryptPrivateKeyAndStore(privateKeyString, keyringPassword)
+                            keyManager.lockKeyring()
+                        } catch (e: Exception) {
+                            // Handle encryption error
+                            Toast.makeText(this@MainActivity, "Failed to secure private key: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+
+                        // Clear password and update UI
                         keyringPassword = ""
-                        textViewStatus.text = "LOCKED";
-                        textViewStatus.setTextColor(getColorStateList(R.color.red));
+                        textViewStatus.text = "LOCKED"
+                        textViewStatus.setTextColor(getColorStateList(R.color.red))
                         Toast.makeText(
                             this@MainActivity,
                             "Keyring locked due to inactivity",
@@ -104,9 +110,7 @@ class MainActivity : AppCompatActivity() {
                         ).show()
                     }
                 }
-
-                delay(1000);
-
+                delay(1000)
             }
         }
     }
@@ -171,9 +175,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun verifyPasswordAndUnlock(password: String) {
-        myPGPKeyPair?.let { keyPair ->
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Check if keyring is locked - if so, decrypt the stored private key
+                val keyPairToTest = if (keyManager.isKeyringLocked()) {
+                    // Keyring is locked, try to decrypt stored private key
+                    val decryptedPrivateKeyString = keyManager.decryptStoredPrivateKey(password)
+                    if (decryptedPrivateKeyString != null) {
+                        // Reconstruct the key pair with decrypted private key
+                        val publicKeyString = keyManager.getStoredPublicKey()
+                        if (publicKeyString != null) {
+                            keyManager.reconstructKeyPairFromStrings(publicKeyString, decryptedPrivateKeyString)
+                        } else null
+                    } else null
+                } else {
+                    // Keyring is unlocked, use existing key pair
+                    myPGPKeyPair
+                }
+
+                keyPairToTest?.let { keyPair ->
                     // Test message to encrypt and decrypt
                     val testMessage = "Keyring unlock test message"
 
@@ -191,13 +211,21 @@ class MainActivity : AppCompatActivity() {
                     // Verify the decrypted text matches original
                     if (decryptedText == testMessage) {
                         withContext(Dispatchers.Main) {
+                            // Update the global key pair reference
+                            myPGPKeyPair = keyPair
                             keyringPassword = password
-                            timestamp = Date().time;
-                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully for ${Date().time-(timestamp+timeoutValue)}!", Toast.LENGTH_SHORT).show()
+                            timestamp = Date().time
 
-                            textViewStatus.text = "UNLOCKED";
-                            textViewStatus.setTextColor(getColorStateList(R.color.green));
-                            // Restart the timer for another 10 seconds
+                            // Unlock the keyring
+                            keyManager.unlockKeyring()
+
+                            val timeRemaining = timeoutValue / 1000
+                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully for $timeRemaining seconds!", Toast.LENGTH_SHORT).show()
+
+                            textViewStatus.text = "UNLOCKED"
+                            textViewStatus.setTextColor(getColorStateList(R.color.green))
+
+                            // Restart the timer
                             startKeyringTimer()
                         }
                     } else {
@@ -205,19 +233,22 @@ class MainActivity : AppCompatActivity() {
                             Toast.makeText(this@MainActivity, "Unlock failed: decryption verification failed", Toast.LENGTH_LONG).show()
                         }
                     }
-                } catch (e: Exception) {
+                } ?: run {
                     withContext(Dispatchers.Main) {
-                        val errorMsg = if (e.message?.contains("checksum") == true || e.message?.contains("password") == true) {
-                            "Incorrect password"
-                        } else {
-                            "Unlock failed: ${e.message}"
-                        }
+                        val errorMsg = "Could not access private key - may be corrupted or missing"
                         Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
                     }
                 }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val errorMsg = if (e.message?.contains("checksum") == true || e.message?.contains("password") == true) {
+                        "Incorrect password"
+                    } else {
+                        "Unlock failed: ${e.message}"
+                    }
+                    Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                }
             }
-        } ?: run {
-            Toast.makeText(this, "Please generate your keys in Settings first", Toast.LENGTH_SHORT).show()
         }
     }
 
