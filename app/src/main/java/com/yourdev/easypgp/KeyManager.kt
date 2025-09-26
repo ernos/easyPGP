@@ -208,20 +208,27 @@ class KeyManager(context: Context) {
             putBoolean("keyring_locked", true)
         }
     }
+
+    // Remove unencrypted private key when encrypting
+    fun removeUnencryptedPrivateKey() {
+        prefs.edit {
+            remove("my_private_key_unencrypted")
+        }
+    }
+
     // Save user's own PGP key pair
     fun saveMyKeyPair(keyPair: PGPKeyPair) {
         try {
             val publicKeyString = String(keyPair.publicKeyRing.encoded)
             val privateKeyString = String(keyPair.secretKeyRing.encoded)
 
-            // Save public key normally
+            // Save both public key and unencrypted private key initially
             prefs.edit()
                 .putString("my_public_key", publicKeyString)
+                .putString("my_private_key_unencrypted", privateKeyString)
                 .putBoolean("has_my_keys", true)
+                .putBoolean("keyring_locked", false) // Initially unlocked
                 .apply()
-
-            // Encrypt and save private key securely
-            encryptPrivateKeyAndStore(privateKeyString, null)
 
         } catch (e: Exception) {
             throw Exception("Failed to save key pair: ${e.message}")
@@ -231,7 +238,19 @@ class KeyManager(context: Context) {
     // Load user's own PGP key pair
     fun loadMyKeyPair(): PGPKeyPair? {
         val publicKeyString = prefs.getString("my_public_key", null) ?: return null
-        val privateKeyString = decryptStoredPrivateKey(null) ?: return null
+
+        // Try to get private key - first check if we have an unencrypted version
+        val privateKeyString = if (prefs.contains("my_private_key_unencrypted")) {
+            // We have unencrypted private key (fresh install or unlocked state)
+            prefs.getString("my_private_key_unencrypted", null)
+        } else {
+            // Try to decrypt stored encrypted private key
+            decryptStoredPrivateKey(null)
+        }
+
+        if (privateKeyString == null) {
+            return null
+        }
 
         return try {
             val publicKeyRing = parsePublicKeyRing(publicKeyString)
@@ -249,6 +268,7 @@ class KeyManager(context: Context) {
         prefs.edit()
             .remove("my_public_key")
             .remove("my_private_key")
+            .remove("my_private_key_unencrypted")
             .putBoolean("has_my_keys", false)
             .apply()
 

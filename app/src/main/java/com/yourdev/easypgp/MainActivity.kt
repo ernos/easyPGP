@@ -63,35 +63,47 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSavedKeys() {
         // Check if we have encrypted keys stored
-        if (keyManager.hasMyKeys()) {
-            // Try to load keys - this will work if they're not encrypted yet (first time) or if they can be decrypted
-            val savedKeyPair = keyManager.loadMyKeyPair()
-            if (savedKeyPair != null) {
-                // Successfully loaded keys
-                myPGPKeyPair = savedKeyPair
+        if(keyManager.isKeyringLocked()){
+            textViewStatus.text = "Key Ring LOCKED";
+            textViewStatus.setTextColor(getColorStateList(R.color.red))
+            Toast.makeText(this, "PGP keys loaded and unlocked", Toast.LENGTH_SHORT).show()
 
-                // Check if keyring is locked (meaning keys are encrypted)
-                if (keyManager.isKeyringLocked()) {
-                    textViewStatus.text = "KEYS LOADED - LOCKED"
-                    textViewStatus.setTextColor(getColorStateList(R.color.red))
-                    Toast.makeText(this, "PGP keys loaded but locked - unlock to use", Toast.LENGTH_SHORT).show()
-                } else {
-                    textViewStatus.text = "KEYS LOADED - UNLOCKED"
-                    textViewStatus.setTextColor(getColorStateList(R.color.green))
-                    Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT).show()
+        }else{
+            if(keyManager.hasMyKeys()){
+                textViewStatus.text = "Key Pair Loaded";
+                textViewStatus.setTextColor(getColorStateList(R.color.green))
+                Toast.makeText(this, "PGP keys loaded and unlocked", Toast.LENGTH_SHORT).show()
+
+                // Try to load keys - this will work if they're not encrypted yet (first time) or if they can be decrypted
+                val savedKeyPair = keyManager.loadMyKeyPair()
+                if (savedKeyPair != null) {
+                    // Successfully loaded keys
+                    myPGPKeyPair = savedKeyPair
+
+                    // Check if keyring is locked (meaning keys are encrypted)
+                    if (keyManager.isKeyringLocked()) {
+                        textViewStatus.text = "KEYS LOADED - LOCKED"
+                        textViewStatus.setTextColor(getColorStateList(R.color.red))
+                        Toast.makeText(
+                            this,
+                            "PGP keys loaded but locked - unlock to use",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        textViewStatus.text = "KEYS LOADED - UNLOCKED"
+                        textViewStatus.setTextColor(getColorStateList(R.color.green))
+                        Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT)
+                            .show()
+                    }
                 }
-            } else {
+            }else {
                 // Keys exist but couldn't be loaded (likely encrypted and keyring is locked)
-                textViewStatus.text = "KEYS ENCRYPTED - UNLOCK NEEDED"
+                textViewStatus.text = "Key Pair Unavailible"
                 textViewStatus.setTextColor(getColorStateList(R.color.red))
                 Toast.makeText(this, "Keys found but encrypted - use unlock button", Toast.LENGTH_SHORT).show()
             }
-        } else {
-            // No keys found at all
-            textViewStatus.text = "NO KEYS - GENERATE IN SETTINGS"
-            textViewStatus.setTextColor(getColorStateList(R.color.red))
-            Toast.makeText(this, "No keys found - generate keys in Settings", Toast.LENGTH_SHORT).show()
         }
+
     }
 
     private fun startKeyringTimer() {
@@ -102,14 +114,22 @@ class MainActivity : AppCompatActivity() {
                 val today = Date().time
                 if(myPGPKeyPair?.secretKeyRing != null && keyringPassword.isNotEmpty()){
                     if(today > (timestamp + timeoutValue)){
-                        // Encrypt and store the private key before locking
-                        val privateKeyString = String(myPGPKeyPair?.secretKeyRing?.encoded ?: ByteArray(0))
-                        try {
-                            keyManager.encryptPrivateKeyAndStore(privateKeyString, keyringPassword)
-                            keyManager.lockKeyring()
-                        } catch (e: Exception) {
-                            // Handle encryption error
-                            Toast.makeText(this@MainActivity, "Failed to secure private key: ${e.message}", Toast.LENGTH_LONG).show()
+                        // Only encrypt if keyring is currently unlocked
+                        if (!keyManager.isKeyringLocked()) {
+                            val privateKeyString = String(myPGPKeyPair?.secretKeyRing?.encoded ?: ByteArray(0))
+                            try {
+                                // Encrypt the private key
+                                keyManager.encryptPrivateKeyAndStore(privateKeyString, keyringPassword)
+
+                                // Remove the unencrypted version
+                                keyManager.removeUnencryptedPrivateKey()
+
+                                // Lock the keyring
+                                keyManager.lockKeyring()
+                            } catch (e: Exception) {
+                                // Handle encryption error
+                                Toast.makeText(this@MainActivity, "Failed to secure private key: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         }
 
                         // Clear password and update UI
