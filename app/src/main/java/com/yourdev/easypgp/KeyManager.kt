@@ -1,0 +1,77 @@
+package com.yourdev.easypgp
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import org.bouncycastle.openpgp.PGPObjectFactory
+import org.bouncycastle.openpgp.PGPPublicKeyRing
+import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator
+import java.io.ByteArrayInputStream
+
+class KeyManager(context: Context) {
+
+    private val prefs: SharedPreferences = context.getSharedPreferences("pgp_keys", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    data class StoredKey(
+        val name: String,
+        val keyId: String,
+        val keyString: String
+    )
+
+    fun saveImportedKey(name: String, keyString: String, keyId: String) {
+        val keys = getStoredKeys().toMutableList()
+        keys.add(StoredKey(name, keyId, keyString))
+
+        val keysJson = gson.toJson(keys)
+        prefs.edit().putString("imported_keys", keysJson).apply()
+    }
+
+    fun getImportedKeys(): List<ImportedPublicKey> {
+        return getStoredKeys().mapNotNull { storedKey ->
+            try {
+                val publicKey = parsePublicKey(storedKey.keyString)
+                ImportedPublicKey(
+                    name = storedKey.name,
+                    publicKey = publicKey,
+                    keyId = storedKey.keyId,
+                    keyString = storedKey.keyString
+                )
+            } catch (e: Exception) {
+                null // Skip invalid keys
+            }
+        }
+    }
+
+    fun removeImportedKey(keyId: String) {
+        val keys = getStoredKeys().toMutableList()
+        keys.removeAll { it.keyId == keyId }
+
+        val keysJson = gson.toJson(keys)
+        prefs.edit().putString("imported_keys", keysJson).apply()
+    }
+
+    private fun getStoredKeys(): List<StoredKey> {
+        val keysJson = prefs.getString("imported_keys", null) ?: return emptyList()
+        val type = object : TypeToken<List<StoredKey>>() {}.type
+        return gson.fromJson(keysJson, type)
+    }
+
+    private fun parsePublicKey(keyString: String): org.bouncycastle.openpgp.PGPPublicKey {
+        val inputStream = ByteArrayInputStream(keyString.toByteArray())
+        val decoderStream = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(inputStream)
+        val pgpObjectFactory = PGPObjectFactory(decoderStream, BcKeyFingerprintCalculator())
+
+        val keyRing = pgpObjectFactory.nextObject() as PGPPublicKeyRing
+        return keyRing.publicKey
+    }
+
+    fun saveMyKeyStatus(hasKeys: Boolean) {
+        prefs.edit().putBoolean("has_my_keys", hasKeys).apply()
+    }
+
+    fun hasMyKeys(): Boolean {
+        return prefs.getBoolean("has_my_keys", false)
+    }
+}
