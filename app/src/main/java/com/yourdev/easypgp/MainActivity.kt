@@ -208,68 +208,41 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun showUnlockKeyringDialog() {
-        showPasswordDialog(
-            this,
-            "Unlock Keyring",
-            "Enter your PGP key password to unlock:",
-            object : PasswordCallback {
-                override fun onPasswordEntered(password: String) {
-                    loadSavedKeys()
-                    verifyPasswordAndUnlock(password)
-                }
-
-                override fun onPasswordCancelled() {
-                    Toast.makeText(this@MainActivity, "Unlock cancelled", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-    }
-
     private fun verifyPasswordAndUnlock(password: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Determine which key pair to test
-                val keyPairToTest = when {
-                    // Case 1: Keys are already loaded in memory and unlocked
-                    myPGPKeyPair != null && !keyManager.isKeyringLocked() -> {
-                        myPGPKeyPair
-                    }
-                    // Case 2: Keys are stored but encrypted (keyring is locked)
-                    keyManager.isKeyringLocked() && keyManager.hasMyKeys() -> {
-                        val privateKeyString = String(myPGPKeyPair?.secretKeyRing?.encoded ?: ByteArray(0))
-                        // Try to decrypt the stored private key
-                        val decryptedPrivateKeyString: String
-                        myPGPKeyPair = keyManager.loadMyKeyPair(password)
-                        keyManager.saveMyKeyPair(myPGPKeyPair!!)
-                        decryptedPrivateKeyString = keyManager.decryptStoredPrivateKey(password)
+                // Step 1: Get the key pair to test
+                var keyPairToTest: PGPKeyPair? = null
 
-
-                        val publicKeyString = keyManager.getStoredPublicKey()
-
-                        if (decryptedPrivateKeyString != null && publicKeyString != null) {
-                            keyManager.reconstructKeyPairFromStrings(publicKeyString, decryptedPrivateKeyString)
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(this@MainActivity, "Failed to decrypt stored keys", Toast.LENGTH_LONG).show()
-                            }
-                            null
-                        }
-                    }
-                    // Case 3: Keys are loaded but need verification (freshly loaded, not encrypted yet)
+                when {
+                    // Case 1: Keys are already loaded in memory
                     myPGPKeyPair != null -> {
-                        myPGPKeyPair
+                        keyPairToTest = myPGPKeyPair
+                    }
+                    // Case 2: No keys in memory, try to load from storage
+                    keyManager.hasMyKeys() -> {
+                        // Try to load keys (handles both encrypted and unencrypted)
+                        keyPairToTest = keyManager.loadMyKeyPair()
+                        if (keyPairToTest == null && keyManager.isKeyringLocked()) {
+                            // Keys are encrypted, try to decrypt them
+                            val decryptedPrivateKeyString = keyManager.decryptStoredPrivateKey(null) // AES doesn't need PGP password
+                            val publicKeyString = keyManager.getStoredPublicKey()
+
+                            if (decryptedPrivateKeyString != null && publicKeyString != null) {
+                                keyPairToTest = keyManager.reconstructKeyPairFromStrings(publicKeyString, decryptedPrivateKeyString)
+                            }
+                        }
                     }
                     else -> {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "No keys available - generate keys first", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, "No keys found - generate keys in Settings first", Toast.LENGTH_LONG).show()
                         }
-                        null
+                        return@launch
                     }
                 }
 
+                // Step 2: Verify the PGP password by testing encryption/decryption
                 keyPairToTest?.let { keyPair ->
-                    // Test message to encrypt and decrypt
                     val testMessage = "Keyring unlock test message"
 
                     // Try to encrypt with public key
@@ -283,10 +256,10 @@ class MainActivity : AppCompatActivity() {
                     val privateKey = keyPair.secretKeyRing.secretKey.extractPrivateKey(decryptor)
                     val decryptedText = pgpUtil.decrypt(encryptedText, privateKey)
 
-                    // Verify the decrypted text matches original
+                    // Step 3: Verify the password worked
                     if (decryptedText == testMessage) {
                         withContext(Dispatchers.Main) {
-                            // Update the global key pair reference
+                            // Password is correct, update state
                             myPGPKeyPair = keyPair
                             keyringPassword = password
                             timestamp = Date().time
@@ -294,24 +267,24 @@ class MainActivity : AppCompatActivity() {
                             // Unlock the keyring
                             keyManager.unlockKeyring()
 
-                            val timeRemaining = timeoutValue / 1000
-                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully for $timeRemaining seconds!", Toast.LENGTH_SHORT).show()
-
+                            // Update UI
                             textViewStatus.text = "UNLOCKED"
                             textViewStatus.setTextColor(getColorStateList(R.color.green))
 
-                            // Restart the timer
+                            val timeRemaining = timeoutValue / 1000
+                            Toast.makeText(this@MainActivity, "Keyring unlocked for $timeRemaining seconds!", Toast.LENGTH_SHORT).show()
+
+                            // Start the timeout timer
                             startKeyringTimer()
                         }
                     } else {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Unlock failed: decryption verification failed", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@MainActivity, "Unlock failed: verification failed", Toast.LENGTH_LONG).show()
                         }
                     }
                 } ?: run {
                     withContext(Dispatchers.Main) {
-                        val errorMsg = "Could not access private key - may be corrupted or missing"
-                        Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                        Toast.makeText(this@MainActivity, "Could not load keys - may be corrupted", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {

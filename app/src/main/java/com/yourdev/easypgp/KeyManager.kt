@@ -246,38 +246,31 @@ class KeyManager(context: Context) {
     }
 
     // Load user's own PGP key pair
-    fun loadMyKeyPair(password: String? = null): PGPKeyPair? {
+    fun loadMyKeyPair(): PGPKeyPair? {
         val publicKeyString = prefs.getString("my_public_key", null) ?: return null
-        var privateKeyString: String? = null
-        if (prefs.contains("my_private_key_unencrypted"))
-            privateKeyString = prefs.getString("my_private_key_unencrypted", null) ?: return null
-        else
-            privateKeyString = prefs.getString("my_private_key", null) ?: return null
 
-        if(password!=null) {
+        // Try to get private key - first check if we have an unencrypted version
+        val privateKeyString = if (prefs.contains("my_private_key_unencrypted")) {
+            // We have unencrypted private key (fresh install or unlocked state)
+            prefs.getString("my_private_key_unencrypted", null)
+        } else {
             // Try to decrypt stored encrypted private key
-            decryptStoredPrivateKey(password)
-            return try {
-                val publicKeyRing = parsePublicKeyRing(publicKeyString)
-                val secretKeyRing = parseSecretKeyRing(privateKeyString)
-                val publicKey = publicKeyRing.publicKey
-
-                print("INFO Private key UNENCRYPTED and loaded: ${privateKeyString}")
-                PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
-            } catch (e: Exception) {
-                print("ERROR loading key pair: ${e.message}")
-                null // Return null if parsing fails
-            }
-        }
-        else {
-            return null
+            decryptStoredPrivateKey(null)
         }
 
         if (privateKeyString == null) {
             return null
         }
 
+        return try {
+            val publicKeyRing = parsePublicKeyRing(publicKeyString)
+            val secretKeyRing = parseSecretKeyRing(privateKeyString)
+            val publicKey = publicKeyRing.publicKey
 
+            PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
+        } catch (e: Exception) {
+            null // Return null if parsing fails
+        }
     }
 
     // Clear user's own keys
