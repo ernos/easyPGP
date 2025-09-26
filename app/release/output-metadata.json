@@ -4,7 +4,7 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "com.example.easypgp",
+  "applicationId": "com.yourdev.easypgp",
   "variantName": "release",
   "elements": [
     {

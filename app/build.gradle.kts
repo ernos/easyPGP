@@ -8,7 +8,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.easypgp"
+        applicationId = "com.yourdev.easypgp"
         minSdk = 24
         targetSdk = 36
         versionCode = 2
@@ -19,6 +19,14 @@ android {
 
     buildTypes {
         release {
+            isDebuggable = false
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
             isDebuggable = true
             isMinifyEnabled = false
             proguardFiles(

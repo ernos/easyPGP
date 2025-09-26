@@ -2,7 +2,6 @@ package com.yourdev.easypgp
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
@@ -11,17 +10,29 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.yourdev.easypgp.PGPUtil.PGPKeyPair
+import com.yourdev.easypgp.PasswordDialog.Companion.showPasswordDialog
+import com.yourdev.easypgp.PasswordDialog.PasswordCallback
+import com.yourdev.easypgp.SettingsActivity.Companion.myPGPKeyPair
 import kotlinx.coroutines.*
+import org.bouncycastle.openpgp.PGPPublicKey
+import org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder
+import org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider
+import java.util.Date
 
 class MainActivity : AppCompatActivity() {
+    private var keyringPassword: String = ""
+    private var timestamp: Long = 0;
+    private var keyringTimer: Job? = null
 
     private lateinit var btnSettings: Button
     private lateinit var spinnerRecipients: Spinner
     private lateinit var editTextInput: EditText
     private lateinit var btnEncrypt: Button
     private lateinit var btnDecrypt: Button
-    private lateinit var textViewOutput: TextView
-
+    private lateinit var btnUnlock: Button
+    private lateinit var textViewOutput: TextView;
+    private lateinit var textViewStatus: TextView;
     private val pgpUtil = PGPUtil()
     private lateinit var keyManager: KeyManager
     private var importedKeys: List<ImportedPublicKey> = emptyList()
@@ -40,6 +51,34 @@ class MainActivity : AppCompatActivity() {
         initializeViews()
         setupClickListeners()
         loadImportedKeys()
+
+        // Start the keyring timer
+        startKeyringTimer()
+    }
+
+    private fun startKeyringTimer() {
+        timestamp = Date().time;
+        var today:Long = Date().time;
+        keyringTimer?.cancel() // Cancel any existing timer
+        keyringTimer = CoroutineScope(Dispatchers.Main).launch {
+            while(true) {
+                today = Date().time;
+                if(  today > (timestamp + 30000) ){
+                    // More than 10 seconds have passed since last activity
+                    keyringPassword = ""
+                    textViewStatus.text = "LOCKED";
+                    textViewStatus.setTextColor(getColorStateList(R.color.red));
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Keyring locked due to inactivity",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                delay(1000);
+
+            }
+        }
     }
 
     override fun onResume() {
@@ -53,8 +92,10 @@ class MainActivity : AppCompatActivity() {
         spinnerRecipients = findViewById(R.id.spinnerRecipients)
         editTextInput = findViewById(R.id.editTextInput)
         btnEncrypt = findViewById(R.id.btnEncrypt)
+        btnUnlock = findViewById(R.id.btnUnlock)
         btnDecrypt = findViewById(R.id.btnDecrypt)
         textViewOutput = findViewById(R.id.textViewOutput)
+        textViewStatus = findViewById(R.id.textViewStatus)
     }
 
     private fun setupClickListeners() {
@@ -70,9 +111,81 @@ class MainActivity : AppCompatActivity() {
             decryptText()
         }
 
+        btnUnlock.setOnClickListener {
+            showUnlockDialog()
+        }
+
         // Make output text copyable on tap - use manual copy with toast
         textViewOutput.setOnClickListener {
             manualCopyToClipboard()
+        }
+    }
+
+    private fun showUnlockDialog() {
+        showPasswordDialog(
+            this,
+            "Unlock Keyring",
+            "Enter your PGP key password to unlock:",
+            object : PasswordCallback {
+                override fun onPasswordEntered(password: String) {
+                    verifyPasswordAndUnlock(password)
+                }
+
+                override fun onPasswordCancelled() {
+                    Toast.makeText(this@MainActivity, "Unlock cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    private fun verifyPasswordAndUnlock(password: String) {
+        myPGPKeyPair?.let { keyPair ->
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    // Test message to encrypt and decrypt
+                    val testMessage = "Keyring unlock test message"
+
+                    // Try to encrypt with public key
+                    val encryptedText = pgpUtil.encrypt(testMessage, keyPair.publicKey)
+
+                    // Try to decrypt with private key using provided password
+                    val decryptor = BcPBESecretKeyDecryptorBuilder(
+                        BcPGPDigestCalculatorProvider()
+                    ).build(password.toCharArray())
+
+                    val privateKey = keyPair.secretKeyRing.secretKey.extractPrivateKey(decryptor)
+                    val decryptedText = pgpUtil.decrypt(encryptedText, privateKey)
+
+                    // Verify the decrypted text matches original
+                    if (decryptedText == testMessage) {
+                        withContext(Dispatchers.Main) {
+                            keyringPassword = password
+                            timestamp = Date().time;
+                            Toast.makeText(this@MainActivity, "Keyring unlocked successfully!", Toast.LENGTH_SHORT).show()
+
+                            textViewStatus.text = "UNLOCKED";
+                            textViewStatus.setTextColor(getColorStateList(R.color.green));
+                            // Restart the timer for another 10 seconds
+                            startKeyringTimer()
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Unlock failed: decryption verification failed", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        val errorMsg = if (e.message?.contains("checksum") == true || e.message?.contains("password") == true) {
+                            "Incorrect password"
+                        } else {
+                            "Unlock failed: ${e.message}"
+                        }
+                        Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        } ?: run {
+            Toast.makeText(this, "Please generate your keys in Settings first", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -92,7 +205,7 @@ class MainActivity : AppCompatActivity() {
 
         if (isValidContent) {
             try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("PGP Output", outputText)
                 clipboard.setPrimaryClip(clip)
 
@@ -120,7 +233,7 @@ class MainActivity : AppCompatActivity() {
 
         if (isValidContent) {
             try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("PGP Output", outputText)
                 clipboard.setPrimaryClip(clip)
 
@@ -134,7 +247,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideKeyboard() {
-        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val inputMethodManager = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
         currentFocus?.let { view ->
             inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
         }
@@ -159,14 +272,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateButtonStates() {
-        val hasMyKeys = keyManager.hasMyKeys() && SettingsActivity.myPGPKeyPair != null
+        val hasMyKeys = keyManager.hasMyKeys() && myPGPKeyPair != null
         val hasImportedKeys = importedKeys.isNotEmpty()
 
         if(hasImportedKeys && spinnerRecipients.selectedItem.toString() != "My Key (Self)")
         // Enable encrypt if we have imported keys (to encrypt for others)
             btnEncrypt.isEnabled = true
 
-            // If only "My Key"
         // Enable decrypt if we have our own keys (to decrypt messages sent to us)
         btnDecrypt.isEnabled = hasMyKeys
 
@@ -190,7 +302,7 @@ class MainActivity : AppCompatActivity() {
 
         if (selectedPosition == 0) {
             // "My Key" selected - encrypt for ourselves
-            SettingsActivity.myPGPKeyPair?.let { keyPair ->
+            myPGPKeyPair?.let { keyPair ->
                 encryptForKey(inputText, keyPair.publicKey, "yourself")
             } ?: run {
                 Toast.makeText(this, "Please generate your keys in Settings first", Toast.LENGTH_SHORT).show()
@@ -206,7 +318,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun encryptForKey(inputText: String, publicKey: org.bouncycastle.openpgp.PGPPublicKey, recipientName: String) {
+    private fun encryptForKey(inputText: String, publicKey: PGPPublicKey, recipientName: String) {
         btnEncrypt.isEnabled = false
         hideKeyboard()
 
@@ -241,13 +353,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        SettingsActivity.myPGPKeyPair?.let { keyPair ->
+        myPGPKeyPair?.let { keyPair ->
             // Show password dialog for decryption
-            PasswordDialog.showPasswordDialog(
+            showPasswordDialog(
                 this,
                 "Enter Password",
                 "Enter your PGP key password to decrypt the message:",
-                object : PasswordDialog.PasswordCallback {
+                object : PasswordCallback {
                     override fun onPasswordEntered(password: String) {
                         performDecryption(inputText, keyPair, password)
                     }
@@ -262,15 +374,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun performDecryption(inputText: String, keyPair: PGPUtil.PGPKeyPair, password: String) {
+    private fun performDecryption(inputText: String, keyPair: PGPKeyPair, password: String) {
         btnDecrypt.isEnabled = false
         hideKeyboard()
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Re-extract private key with the provided password
-                val decryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
-                    org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+                val decryptor = BcPBESecretKeyDecryptorBuilder(
+                    BcPGPDigestCalculatorProvider()
                 ).build(password.toCharArray())
 
                 val privateKey = keyPair.secretKeyRing.secretKey.extractPrivateKey(decryptor)
@@ -298,5 +410,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        keyringTimer?.cancel() // Clean up timer when activity is destroyed
     }
 }
