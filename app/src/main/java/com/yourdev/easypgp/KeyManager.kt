@@ -30,6 +30,7 @@ class KeyManager(context: Context) {
 
     init {
         keyStore.load(null)
+        loadMyKeyPair()
     }
 
     data class StoredKey(
@@ -196,7 +197,17 @@ class KeyManager(context: Context) {
     }
 
     public fun isKeyringLocked(): Boolean {
-        return prefs.getBoolean("keyring_locked", true)
+        var privkey: String =           prefs.getString("my_private_key", "").toString();
+        val privkey_encrypted: String = prefs.getString("my_private_key_encrypted", "").toString();
+        if (privkey.length >= 0) {
+            if(privkey_encrypted !== "")
+                return true
+            else
+                return false
+        }
+        else {
+            return true
+        }
     }
     public fun unlockKeyring() {
         prefs.edit {
@@ -227,7 +238,6 @@ class KeyManager(context: Context) {
                 .putString("my_public_key", publicKeyString)
                 .putString("my_private_key_unencrypted", privateKeyString)
                 .putBoolean("has_my_keys", true)
-                .putBoolean("keyring_locked", false) // Initially unlocked
                 .apply()
 
         } catch (e: Exception) {
@@ -236,31 +246,38 @@ class KeyManager(context: Context) {
     }
 
     // Load user's own PGP key pair
-    fun loadMyKeyPair(): PGPKeyPair? {
+    fun loadMyKeyPair(password: String? = null): PGPKeyPair? {
         val publicKeyString = prefs.getString("my_public_key", null) ?: return null
+        var privateKeyString: String? = null
+        if (prefs.contains("my_private_key_unencrypted"))
+            privateKeyString = prefs.getString("my_private_key_unencrypted", null) ?: return null
+        else
+            privateKeyString = prefs.getString("my_private_key", null) ?: return null
 
-        // Try to get private key - first check if we have an unencrypted version
-        val privateKeyString = if (prefs.contains("my_private_key_unencrypted")) {
-            // We have unencrypted private key (fresh install or unlocked state)
-            prefs.getString("my_private_key_unencrypted", null)
-        } else {
+        if(password!=null) {
             // Try to decrypt stored encrypted private key
-            decryptStoredPrivateKey(null)
+            decryptStoredPrivateKey(password)
+            return try {
+                val publicKeyRing = parsePublicKeyRing(publicKeyString)
+                val secretKeyRing = parseSecretKeyRing(privateKeyString)
+                val publicKey = publicKeyRing.publicKey
+
+                print("INFO Private key UNENCRYPTED and loaded: ${privateKeyString}")
+                PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
+            } catch (e: Exception) {
+                print("ERROR loading key pair: ${e.message}")
+                null // Return null if parsing fails
+            }
+        }
+        else {
+            return null
         }
 
         if (privateKeyString == null) {
             return null
         }
 
-        return try {
-            val publicKeyRing = parsePublicKeyRing(publicKeyString)
-            val secretKeyRing = parseSecretKeyRing(privateKeyString)
-            val publicKey = publicKeyRing.publicKey
 
-            PGPKeyPair(publicKey, publicKeyRing, secretKeyRing)
-        } catch (e: Exception) {
-            null // Return null if parsing fails
-        }
     }
 
     // Clear user's own keys

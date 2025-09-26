@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
 
         loadImportedKeys()
 
+        showUnlockDialog()
         // Start the keyring timer
         startKeyringTimer()
     }
@@ -75,7 +76,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "PGP keys loaded and unlocked", Toast.LENGTH_SHORT).show()
 
                 // Try to load keys - this will work if they're not encrypted yet (first time) or if they can be decrypted
-                val savedKeyPair = keyManager.loadMyKeyPair()
+                val savedKeyPair = keyManager.loadMyKeyPair(keyringPassword)
                 if (savedKeyPair != null) {
                     // Successfully loaded keys
                     myPGPKeyPair = savedKeyPair
@@ -207,6 +208,24 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun showUnlockKeyringDialog() {
+        showPasswordDialog(
+            this,
+            "Unlock Keyring",
+            "Enter your PGP key password to unlock:",
+            object : PasswordCallback {
+                override fun onPasswordEntered(password: String) {
+                    loadSavedKeys()
+                    verifyPasswordAndUnlock(password)
+                }
+
+                override fun onPasswordCancelled() {
+                    Toast.makeText(this@MainActivity, "Unlock cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
     private fun verifyPasswordAndUnlock(password: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -218,8 +237,14 @@ class MainActivity : AppCompatActivity() {
                     }
                     // Case 2: Keys are stored but encrypted (keyring is locked)
                     keyManager.isKeyringLocked() && keyManager.hasMyKeys() -> {
+                        val privateKeyString = String(myPGPKeyPair?.secretKeyRing?.encoded ?: ByteArray(0))
                         // Try to decrypt the stored private key
-                        val decryptedPrivateKeyString = keyManager.decryptStoredPrivateKey(null)
+                        val decryptedPrivateKeyString: String
+                        myPGPKeyPair = keyManager.loadMyKeyPair(password)
+                        keyManager.saveMyKeyPair(myPGPKeyPair!!)
+                        decryptedPrivateKeyString = keyManager.decryptStoredPrivateKey(password)
+
+
                         val publicKeyString = keyManager.getStoredPublicKey()
 
                         if (decryptedPrivateKeyString != null && publicKeyString != null) {
