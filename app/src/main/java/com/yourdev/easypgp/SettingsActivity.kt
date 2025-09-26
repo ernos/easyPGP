@@ -128,14 +128,20 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val identity = "EasyPGP User <user@easypgp.com>"
                 myPGPKeyPair = pgpUtil.generateKeyPair(identity, password)
+
+                // Save the generated key pair to persistent storage
+                myPGPKeyPair?.let { keyPair ->
+                    keyManager.saveMyKeyPair(keyPair)
+                }
+
                 keyManager.saveMyKeyStatus(true)
 
                 withContext(Dispatchers.Main) {
-                    textViewKeyStatus.text = "PGP keys generated successfully!"
+                    textViewKeyStatus.text = "PGP keys generated and saved successfully!"
                     btnGenerateKeys.isEnabled = true
                     btnExportPublicKey.isEnabled = true
 
-                    Toast.makeText(this@SettingsActivity, "Keys generated successfully! Password will be required for decryption.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@SettingsActivity, "Keys generated and saved! They will auto-load on next app start.", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
