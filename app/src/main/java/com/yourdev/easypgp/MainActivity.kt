@@ -50,10 +50,33 @@ class MainActivity : AppCompatActivity() {
         keyManager = KeyManager(this)
         initializeViews()
         setupClickListeners()
+
+        // Automatically load saved keys on startup
+        loadSavedKeys()
+
         loadImportedKeys()
 
         // Start the keyring timer
         startKeyringTimer()
+    }
+
+    private fun loadSavedKeys() {
+        // Try to load the user's own PGP key pair from storage
+        val savedKeyPair = keyManager.loadMyKeyPair()
+        if (savedKeyPair != null) {
+            // Set the loaded key pair as the current myPGPKeyPair
+            SettingsActivity.myPGPKeyPair = savedKeyPair
+
+            // Update status to show keys are loaded
+            textViewStatus.text = "KEYS LOADED"
+            textViewStatus.setTextColor(getColorStateList(R.color.blue))
+
+            Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT).show()
+        } else {
+            // No saved keys found
+            textViewStatus.text = "NO KEYS"
+            textViewStatus.setTextColor(getColorStateList(R.color.red))
+        }
     }
 
     private fun startKeyringTimer() {

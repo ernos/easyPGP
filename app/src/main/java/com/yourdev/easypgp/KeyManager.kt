@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.yourdev.easypgp.PGPUtil.PGPKeyPair
 import org.bouncycastle.openpgp.PGPObjectFactory
 import org.bouncycastle.openpgp.PGPPublicKeyRing
+import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator
 import java.io.ByteArrayInputStream
 
@@ -19,6 +21,60 @@ class KeyManager(context: Context) {
         val keyId: String,
         val keyString: String
     )
+
+    // Save user's own PGP key pair
+    fun saveMyKeyPair(keyPair: PGPKeyPair) {
+        try {
+            val publicKeyString = String(keyPair.publicKeyRing.encoded)
+            val privateKeyString = String(keyPair.secretKeyRing.encoded)
+
+            prefs.edit()
+                .putString("my_public_key", publicKeyString)
+                .putString("my_private_key", privateKeyString)
+                .putBoolean("has_my_keys", true)
+                .apply()
+        } catch (e: Exception) {
+            throw Exception("Failed to save key pair: ${e.message}")
+        }
+    }
+
+    // Load user's own PGP key pair
+    fun loadMyKeyPair(): PGPKeyPair? {
+        val publicKeyString = prefs.getString("my_public_key", null) ?: return null
+        val privateKeyString = prefs.getString("my_private_key", null) ?: return null
+
+        return try {
+            val publicKeyRing = parsePublicKeyRing(publicKeyString)
+            val secretKeyRing = parseSecretKeyRing(privateKeyString)
+
+            PGPKeyPair(publicKeyRing, secretKeyRing)
+        } catch (e: Exception) {
+            null // Return null if parsing fails
+        }
+    }
+
+    // Clear user's own keys
+    fun clearMyKeys() {
+        prefs.edit()
+            .remove("my_public_key")
+            .remove("my_private_key")
+            .putBoolean("has_my_keys", false)
+            .apply()
+    }
+
+    private fun parsePublicKeyRing(keyString: String): PGPPublicKeyRing {
+        val inputStream = ByteArrayInputStream(keyString.toByteArray())
+        val decoderStream = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(inputStream)
+        val pgpObjectFactory = PGPObjectFactory(decoderStream, BcKeyFingerprintCalculator())
+        return pgpObjectFactory.nextObject() as PGPPublicKeyRing
+    }
+
+    private fun parseSecretKeyRing(keyString: String): PGPSecretKeyRing {
+        val inputStream = ByteArrayInputStream(keyString.toByteArray())
+        val decoderStream = org.bouncycastle.openpgp.PGPUtil.getDecoderStream(inputStream)
+        val pgpObjectFactory = PGPObjectFactory(decoderStream, BcKeyFingerprintCalculator())
+        return pgpObjectFactory.nextObject() as PGPSecretKeyRing
+    }
 
     fun saveImportedKey(name: String, keyString: String, keyId: String) {
         val keys = getStoredKeys().toMutableList()
