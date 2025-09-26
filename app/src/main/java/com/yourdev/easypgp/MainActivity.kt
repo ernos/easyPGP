@@ -353,9 +353,14 @@ class MainActivity : AppCompatActivity() {
     private fun loadImportedKeys() {
         importedKeys = keyManager.getImportedKeys()
 
-
         // Create spinner items with "My Key" option and imported keys
         val spinnerItems = mutableListOf<String>()
+        spinnerItems.add("My Key (Self)")
+
+        // Add all imported keys to the spinner
+        for (importedKey in importedKeys) {
+            spinnerItems.add(importedKey.name)
+        }
 
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, spinnerItems)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -371,9 +376,12 @@ class MainActivity : AppCompatActivity() {
         val hasMyKeys = keyManager.hasMyKeys() && myPGPKeyPair != null
         val hasImportedKeys = importedKeys.isNotEmpty()
 
-        if(hasImportedKeys && spinnerRecipients.selectedItem.toString() != "My Key (Self)")
-        // Enable encrypt if we have imported keys (to encrypt for others)
+        // Check if spinner has items and a selection before accessing selectedItem
+        val selectedItem = spinnerRecipients.selectedItem?.toString()
+        //if(hasImportedKeys && selectedItem != null && selectedItem != "My Key (Self)") {
+            // Enable encrypt if we have imported keys (to encrypt for others)
             btnEncrypt.isEnabled = true
+        //}
 
         // Enable decrypt if we have our own keys (to decrypt messages sent to us)
         btnDecrypt.isEnabled = hasMyKeys
