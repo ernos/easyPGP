@@ -57,54 +57,40 @@ class MainActivity : AppCompatActivity() {
 
         loadImportedKeys()
 
-        showUnlockDialog()
-        // Start the keyring timer
+        // Start the keyring timer (but don't show unlock dialog automatically)
         startKeyringTimer()
     }
 
     private fun loadSavedKeys() {
-        // Check if we have encrypted keys stored
-        if(keyManager.isKeyringLocked()){
-            textViewStatus.text = "Key Ring LOCKED";
-            textViewStatus.setTextColor(getColorStateList(R.color.red))
-            Toast.makeText(this, "PGP keys loaded and unlocked", Toast.LENGTH_SHORT).show()
+        // Check if we have keys and what state they're in
+        if (keyManager.hasMyKeys()) {
+            // Try to load keys from storage
+            val savedKeyPair = keyManager.loadMyKeyPair()
+            if (savedKeyPair != null) {
+                // Successfully loaded keys
+                myPGPKeyPair = savedKeyPair
 
-        }else{
-            if(keyManager.hasMyKeys()){
-                textViewStatus.text = "Key Pair Loaded";
-                textViewStatus.setTextColor(getColorStateList(R.color.green))
-                Toast.makeText(this, "PGP keys loaded and unlocked", Toast.LENGTH_SHORT).show()
-
-                // Try to load keys - this will work if they're not encrypted yet (first time) or if they can be decrypted
-                val savedKeyPair = keyManager.loadMyKeyPair(keyringPassword)
-                if (savedKeyPair != null) {
-                    // Successfully loaded keys
-                    myPGPKeyPair = savedKeyPair
-
-                    // Check if keyring is locked (meaning keys are encrypted)
-                    if (keyManager.isKeyringLocked()) {
-                        textViewStatus.text = "KEYS LOADED - LOCKED"
-                        textViewStatus.setTextColor(getColorStateList(R.color.red))
-                        Toast.makeText(
-                            this,
-                            "PGP keys loaded but locked - unlock to use",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        textViewStatus.text = "KEYS LOADED - UNLOCKED"
-                        textViewStatus.setTextColor(getColorStateList(R.color.green))
-                        Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT)
-                            .show()
-                    }
+                if (keyManager.isKeyringLocked()) {
+                    textViewStatus.text = "KEYS LOADED - LOCKED"
+                    textViewStatus.setTextColor(getColorStateList(R.color.red))
+                    Toast.makeText(this, "PGP keys loaded but locked - unlock to use", Toast.LENGTH_SHORT).show()
+                } else {
+                    textViewStatus.text = "KEYS LOADED - UNLOCKED"
+                    textViewStatus.setTextColor(getColorStateList(R.color.green))
+                    Toast.makeText(this, "PGP keys loaded successfully", Toast.LENGTH_SHORT).show()
                 }
-            }else {
-                // Keys exist but couldn't be loaded (likely encrypted and keyring is locked)
-                textViewStatus.text = "Key Pair Unavailible"
+            } else {
+                // Keys exist but couldn't be loaded (likely encrypted)
+                textViewStatus.text = "KEYS ENCRYPTED - UNLOCK NEEDED"
                 textViewStatus.setTextColor(getColorStateList(R.color.red))
                 Toast.makeText(this, "Keys found but encrypted - use unlock button", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            // No keys found at all
+            textViewStatus.text = "NO KEYS - GENERATE IN SETTINGS"
+            textViewStatus.setTextColor(getColorStateList(R.color.red))
+            Toast.makeText(this, "No keys found - generate keys in Settings", Toast.LENGTH_SHORT).show()
         }
-
     }
 
     private fun startKeyringTimer() {
