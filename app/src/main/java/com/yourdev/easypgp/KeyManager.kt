@@ -372,4 +372,12 @@ class KeyManager(context: Context) {
             null
         }
     }
+
+    fun setUseSamePassword(enabled: Boolean) {
+        prefs.edit { putBoolean("use_same_password", enabled) }
+    }
+
+    fun isUseSamePassword(): Boolean {
+        return prefs.getBoolean("use_same_password", false)
+    }
 }

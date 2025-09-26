@@ -11,25 +11,33 @@
         android:id="@+id/textViewSettingsTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Settings"
+        android:layout_marginBottom="8dp"
+        android:fontFamily="@font/geostar_fill"
+        android:scaleX="1.1"
+        android:scaleY="2"
+        android:text="easyPGP - Settings"
         android:textAlignment="center"
         android:textSize="24sp"
         android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/textViewMyKeys"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/textViewMyKeys"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:fontFamily="@font/geostar"
         android:text="My PGP Keys"
-        android:textSize="18sp"
+        android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@+id/textViewSettingsTitle"
+        app:layout_constraintBottom_toTopOf="@+id/textViewKeyStatus"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewSettingsTitle" />
 
     <TextView
         android:id="@+id/textViewKeyStatus"
@@ -38,100 +46,154 @@
         android:text="No PGP keys generated"
         android:textAlignment="center"
         android:textSize="12sp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@+id/textViewMyKeys"
+        app:layout_constraintBottom_toTopOf="@+id/btnExportPublicKey"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewMyKeys" />
 
     <Button
         android:id="@+id/btnGenerateKeys"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Generate PGP Keys"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@+id/textViewKeyStatus"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:layout_width="106dp"
+        android:layout_height="52dp"
+        android:text="Generate PGP Key Pair"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@+id/chkUseSamePassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <Button
         android:id="@+id/btnExportPublicKey"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Export My Public Key"
-        android:layout_marginTop="8dp"
+        android:layout_width="122dp"
+        android:layout_height="52dp"
+        android:layout_marginBottom="4dp"
         android:enabled="false"
-        app:layout_constraintTop_toBottomOf="@+id/btnGenerateKeys"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:text="Export My Public Key"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toTopOf="@+id/chkUseSamePassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@+id/btnGenerateKeys"
+        app:layout_constraintTop_toTopOf="@+id/btnGenerateKeys"
+        app:layout_constraintVertical_bias="0.0" />
+
+    <Button
+        android:id="@+id/btnReloadKeys"
+        android:layout_width="150dp"
+        android:layout_height="52dp"
+        android:enabled="false"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:text="Reload Key Pair from storage"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toTopOf="@+id/chkUseSamePassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toEndOf="@+id/btnExportPublicKey"
+        app:layout_constraintTop_toTopOf="@+id/btnExportPublicKey"
+        app:layout_constraintVertical_bias="0.0" />
 
     <TextView
         android:id="@+id/textViewImportKeys"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_width="378dp"
+        android:layout_height="38dp"
+        android:layout_marginTop="236dp"
+        android:layout_marginEnd="12dp"
+        android:fontFamily="@font/geostar"
         android:text="Import Public Keys"
-        android:textSize="18sp"
+        android:textAlignment="center"
+        android:textSize="28sp"
         android:textStyle="bold"
-        android:layout_marginTop="32dp"
-        app:layout_constraintTop_toBottomOf="@+id/btnExportPublicKey"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <EditText
         android:id="@+id/editTextKeyName"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="4dp"
         android:hint="Enter name for this key (e.g., John Doe)"
         android:inputType="text"
         android:minHeight="48dp"
-        app:layout_constraintTop_toBottomOf="@+id/textViewImportKeys"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewImportKeys" />
 
     <EditText
         android:id="@+id/editTextPublicKey"
-        android:layout_width="0dp"
-        android:layout_height="150dp"
-        android:layout_marginTop="8dp"
+        android:layout_width="380dp"
+        android:layout_height="134dp"
+        android:layout_marginTop="4dp"
         android:gravity="top|start"
         android:hint="Paste public key here (-----BEGIN PGP PUBLIC KEY BLOCK-----)"
         android:inputType="textMultiLine"
         android:scrollbars="vertical"
-        app:layout_constraintTop_toBottomOf="@+id/editTextKeyName"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <Button
-        android:id="@+id/btnImportKey"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Import Public Key"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@+id/editTextPublicKey"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <TextView
-        android:id="@+id/textViewImportedKeys"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Imported Keys"
-        android:textSize="18sp"
-        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnImportKey" />
+        app:layout_constraintTop_toBottomOf="@+id/editTextKeyName" />
+
+    <Button
+        android:id="@+id/btnImportKey"
+        android:layout_width="175dp"
+        android:layout_height="54dp"
+        android:layout_marginBottom="4dp"
+        android:text="Import Public Key"
+        app:layout_constraintBottom_toTopOf="@+id/recyclerViewKeys"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@+id/textViewImportedKeys"
+        app:layout_constraintTop_toTopOf="@+id/textViewImportedKeys"
+        app:layout_constraintVertical_bias="1.0" />
+
+    <TextView
+        android:id="@+id/textViewImportedKeys"
+        android:layout_width="205dp"
+        android:layout_height="44dp"
+        android:fontFamily="@font/geostar"
+        android:scaleY="2"
+        android:text="Imported Keys"
+        android:textAlignment="center"
+        android:textAllCaps="true"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:typeface="sans"
+        app:flow_horizontalAlign="center"
+        app:flow_verticalAlign="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editTextPublicKey"
+        app:layout_constraintVertical_bias="0.20999998" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewKeys"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@+id/textViewImportedKeys"
+        android:layout_width="379dp"
+        android:layout_height="158dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/textViewImportedKeys"
+        app:layout_constraintVertical_bias="1.0" />
+
+    <CheckBox
+        android:id="@+id/chkUseSamePassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:text="Use same password for decrypting your private key and for when you recieve messages. This can be nice if you don't trust the android key store or just want an added layer of security."
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.242" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

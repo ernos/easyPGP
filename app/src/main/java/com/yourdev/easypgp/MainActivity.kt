@@ -121,6 +121,8 @@ class MainActivity : AppCompatActivity() {
 
                         // Clear password and update UI
                         keyringPassword = ""
+                        keyManager.lockKeyring()
+                        keyManager.clearEncryptionKey()
                         textViewStatus.text = "LOCKED"
                         textViewStatus.setTextColor(getColorStateList(R.color.red))
                         Toast.makeText(
@@ -457,25 +459,33 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        myPGPKeyPair?.let { keyPair ->
-            // Show password dialog for decryption
-            showPasswordDialog(
-                this,
-                "Enter Password",
-                "Enter your PGP key password to decrypt the message:",
-                object : PasswordCallback {
-                    override fun onPasswordEntered(password: String) {
-                        performDecryption(inputText, keyPair, password)
-                    }
-
-                    override fun onPasswordCancelled() {
-                        Toast.makeText(this@MainActivity, "Decryption cancelled", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
-        } ?: run {
+        val keyPair = myPGPKeyPair
+        if (keyPair == null) {
             Toast.makeText(this, "Please generate your keys in Settings first", Toast.LENGTH_SHORT).show()
+            return
         }
+
+        // If user opted to reuse password and keyring is unlocked, skip dialog
+        if (!keyManager.isKeyringLocked() && keyManager.isUseSamePassword() && keyringPassword.isNotEmpty()) {
+            performDecryption(inputText, keyPair, keyringPassword)
+            return
+        }
+
+        // Otherwise, ask for password
+        showPasswordDialog(
+            this,
+            "Enter Password",
+            "Enter your PGP key password to decrypt the message:",
+            object : PasswordCallback {
+                override fun onPasswordEntered(password: String) {
+                    performDecryption(inputText, keyPair, password)
+                }
+
+                override fun onPasswordCancelled() {
+                    Toast.makeText(this@MainActivity, "Decryption cancelled", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
     }
 
     private fun performDecryption(inputText: String, keyPair: PGPKeyPair, password: String) {

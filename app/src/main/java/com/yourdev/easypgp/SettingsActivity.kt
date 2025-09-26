@@ -23,6 +23,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var editTextPublicKey: EditText
     private lateinit var btnImportKey: Button
     private lateinit var recyclerViewKeys: RecyclerView
+    private lateinit var chkUseSamePassword: CheckBox
 
     private val pgpUtil = PGPUtil()
     private lateinit var keyManager: KeyManager
@@ -44,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         initializeViews()
         setupRecyclerView()
         setupClickListeners()
+        setupCheckbox()
         updateKeyStatus()
     }
 
@@ -60,6 +62,7 @@ class SettingsActivity : AppCompatActivity() {
         editTextPublicKey = findViewById(R.id.editTextPublicKey)
         btnImportKey = findViewById(R.id.btnImportKey)
         recyclerViewKeys = findViewById(R.id.recyclerViewKeys)
+        chkUseSamePassword = findViewById(R.id.chkUseSamePassword)
     }
 
     private fun setupRecyclerView() {
@@ -85,6 +88,21 @@ class SettingsActivity : AppCompatActivity() {
 
         btnImportKey.setOnClickListener {
             importPublicKey()
+        }
+    }
+
+    private fun setupCheckbox() {
+        // Reflect current persisted state
+        chkUseSamePassword.isChecked = keyManager.isUseSamePassword()
+        // Persist changes
+        chkUseSamePassword.setOnCheckedChangeListener { _, isChecked ->
+            keyManager.setUseSamePassword(isChecked)
+            val msg = if (isChecked) {
+                "Will reuse keyring password for decryption when unlocked"
+            } else {
+                "Will prompt for decryption password"
+            }
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         }
     }
 
