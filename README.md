@@ -2,6 +2,8 @@
 
 A user-friendly Android application for PGP (Pretty Good Privacy) encryption and decryption. Generate your own PGP keys, import others' public keys, and securely encrypt/decrypt messages with an intuitive interface.
 
+***WARNING*** This is one of my first android applications ever, just a simple show and tell. This was even before I learned about the Compose multiverse so it uses the old style XML layouts. I'm keeping this up there just if people can use it to learn something from it, but dont expect me to update it. It is what is is.
+
 ## Features
 
 ### 🔐 **PGP Key Management**

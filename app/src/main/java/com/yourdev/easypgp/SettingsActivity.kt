@@ -23,6 +23,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var editTextPublicKey: EditText
     private lateinit var btnImportKey: Button
     private lateinit var recyclerViewKeys: RecyclerView
+    private lateinit var chkUseSamePassword: CheckBox
 
     private val pgpUtil = PGPUtil()
     private lateinit var keyManager: KeyManager
@@ -44,6 +45,7 @@ class SettingsActivity : AppCompatActivity() {
         initializeViews()
         setupRecyclerView()
         setupClickListeners()
+        setupCheckbox()
         updateKeyStatus()
     }
 
@@ -60,6 +62,7 @@ class SettingsActivity : AppCompatActivity() {
         editTextPublicKey = findViewById(R.id.editTextPublicKey)
         btnImportKey = findViewById(R.id.btnImportKey)
         recyclerViewKeys = findViewById(R.id.recyclerViewKeys)
+        chkUseSamePassword = findViewById(R.id.chkUseSamePassword)
     }
 
     private fun setupRecyclerView() {
@@ -85,6 +88,21 @@ class SettingsActivity : AppCompatActivity() {
 
         btnImportKey.setOnClickListener {
             importPublicKey()
+        }
+    }
+
+    private fun setupCheckbox() {
+        // Reflect current persisted state
+        chkUseSamePassword.isChecked = keyManager.isUseSamePassword()
+        // Persist changes
+        chkUseSamePassword.setOnCheckedChangeListener { _, isChecked ->
+            keyManager.setUseSamePassword(isChecked)
+            val msg = if (isChecked) {
+                "Will reuse keyring password for decryption when unlocked"
+            } else {
+                "Will prompt for decryption password"
+            }
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -128,14 +146,20 @@ class SettingsActivity : AppCompatActivity() {
             try {
                 val identity = "EasyPGP User <user@easypgp.com>"
                 myPGPKeyPair = pgpUtil.generateKeyPair(identity, password)
+
+                // Save the generated key pair to persistent storage
+                myPGPKeyPair?.let { keyPair ->
+                    keyManager.saveMyKeyPair(keyPair)
+                }
+
                 keyManager.saveMyKeyStatus(true)
 
                 withContext(Dispatchers.Main) {
-                    textViewKeyStatus.text = "PGP keys generated successfully!"
+                    textViewKeyStatus.text = "PGP keys generated and saved successfully!"
                     btnGenerateKeys.isEnabled = true
                     btnExportPublicKey.isEnabled = true
 
-                    Toast.makeText(this@SettingsActivity, "Keys generated successfully! Password will be required for decryption.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@SettingsActivity, "Keys generated and saved! They will auto-load on next app start.", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

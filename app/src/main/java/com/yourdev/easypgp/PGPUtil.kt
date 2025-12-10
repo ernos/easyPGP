@@ -1,5 +1,6 @@
 package com.yourdev.easypgp
 
+import android.widget.Toast
 import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
@@ -207,6 +208,7 @@ class PGPUtil {
             throw Exception(errorMsg, e)
         }
     }
+
 
     fun getPublicKeyString(publicKeyRing: PGPPublicKeyRing): String {
         val byteArrayOutputStream = ByteArrayOutputStream()

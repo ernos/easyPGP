@@ -4,6 +4,9 @@ import android.app.AlertDialog
 import android.content.Context
 import android.widget.EditText
 import android.widget.LinearLayout
+import kotlinx.coroutines.suspendCancellableCoroutine
+import android.app.Activity
+import kotlin.coroutines.resume
 
 class PasswordDialog {
 
@@ -13,7 +16,9 @@ class PasswordDialog {
     }
 
     companion object {
-        fun showPasswordDialog(context: Context, title: String, message: String, callback: PasswordCallback) {
+
+        public fun showPasswordDialog(context: Context?, title: String, message: String, callback: PasswordCallback): String? {
+            var retstr: String ?= null;
             val editText = EditText(context)
             editText.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             editText.hint = "Enter your PGP key password"
@@ -30,9 +35,12 @@ class PasswordDialog {
                 .setPositiveButton("OK") { _, _ ->
                     val password = editText.text.toString()
                     if (password.isNotEmpty()) {
+                        retstr=password;
                         callback.onPasswordEntered(password)
                     } else {
+
                         callback.onPasswordCancelled()
+                        retstr = null;
                     }
                 }
                 .setNegativeButton("Cancel") { _, _ ->
@@ -45,6 +53,9 @@ class PasswordDialog {
 
             // Focus on the password field
             editText.requestFocus()
+
+            return retstr.toString();
         }
+
     }
 }
